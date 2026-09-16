@@ -39,7 +39,7 @@ services:
       - key: APP_URL
         sync: false
 
-  - type: static_site
+  - type: web
     name: peergriddemo-web
     env: static
     plan: free
