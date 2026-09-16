@@ -12,9 +12,8 @@ services:
     region: oregon
     autoDeploy: true
     healthCheckPath: /health
-    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @collab/shared build && pnpm --filter server build
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @collab/shared build && pnpm --filter server build && pnpm --filter server db:migrate
     startCommand: node packages/server/dist/index.js
-    preDeployCommand: pnpm --filter server db:migrate
     envVars:
       - key: NODE_VERSION
         value: 20
@@ -43,7 +42,6 @@ services:
     name: peergriddemo-web
     env: static
     plan: free
-    region: oregon
     autoDeploy: true
     buildCommand: pnpm install --frozen-lockfile && pnpm --filter @collab/shared build && pnpm --filter client build
     staticPublishPath: packages/client/dist
