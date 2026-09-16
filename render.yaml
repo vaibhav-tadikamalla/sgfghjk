@@ -41,7 +41,6 @@ services:
   - type: web
     name: peergriddemo-web
     env: static
-    plan: free
     autoDeploy: true
     buildCommand: pnpm install --frozen-lockfile && pnpm --filter @collab/shared build && pnpm --filter client build
     staticPublishPath: packages/client/dist
