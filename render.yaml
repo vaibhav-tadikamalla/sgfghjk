@@ -37,6 +37,8 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: ADMIN_SECRET
+        sync: false
 
   - type: web
     name: peergriddemo-web
