@@ -1,0 +1,423 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface-0 text-text-primary font-sans;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  #root {
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-4 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-5;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-md bg-surface-2/80 border border-border shadow-glass;
+  }
+
+  .glass-subtle {
+    @apply backdrop-blur-sm bg-surface-1/60 border border-border;
+  }
+
+  .panel {
+    @apply glass rounded-xl overflow-hidden;
+  }
+
+  .btn-ghost {
+    @apply px-3 py-1.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors duration-150 cursor-pointer;
+  }
+
+  .skeleton {
+    @apply animate-shimmer bg-gradient-to-r from-surface-2 via-surface-3 to-surface-2 bg-[length:200%_100%] rounded;
+  }
+
+  .tool-btn {
+    @apply w-8 h-8 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary transition-all duration-150 cursor-pointer;
+  }
+
+  .tool-btn-active {
+    @apply tool-btn bg-accent text-white shadow-glow-sm;
+  }
+
+  .label {
+    @apply text-xs font-medium text-text-muted uppercase tracking-wider;
+  }
+
+  .section {
+    @apply p-3 border-b border-border;
+  }
+
+  .tooltip-content {
+    @apply glass text-xs px-2 py-1 rounded-md text-text-primary shadow-glass z-50;
+  }
+}
+
+@layer utilities {
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .cursor-grab:active {
+    cursor: grabbing !important;
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3), 0 0 60px rgba(99, 102, 241, 0.1);
+  }
+}
+
+/* ── Comment marks ──────────────────────────────────────────────────── */
+
+.comment-mark {
+  background-color: rgba(251, 191, 36, 0.18);
+  border-bottom: 2px solid rgba(251, 191, 36, 0.6);
+  border-radius: 2px;
+  padding-bottom: 1px;
+  cursor: pointer;
+  transition: background-color 120ms;
+}
+
+.comment-mark:hover {
+  background-color: rgba(251, 191, 36, 0.38);
+}
+
+/* ── TipTap editor ──────────────────────────────────────────────────── */
+
+.tiptap-wrapper .tiptap {
+  outline: none;
+  min-height: calc(100vh - 10rem);
+  max-width: 48rem;
+  margin: 0 auto;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  color: rgba(255, 255, 255, 0.92);
+  caret-color: #6366f1;
+  letter-spacing: -0.006em;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+.tiptap-wrapper .tiptap p {
+  margin: 0.35em 0;
+}
+
+.tiptap-wrapper .tiptap h1 {
+  font-size: 2.25em;
+  font-weight: 700;
+  margin: 1.2em 0 0.4em;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: rgba(255, 255, 255, 0.97);
+}
+
+.tiptap-wrapper .tiptap h2 {
+  font-size: 1.625em;
+  font-weight: 600;
+  margin: 1em 0 0.35em;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.tiptap-wrapper .tiptap h3 {
+  font-size: 1.3em;
+  font-weight: 600;
+  margin: 0.8em 0 0.3em;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.tiptap-wrapper .tiptap ul,
+.tiptap-wrapper .tiptap ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.tiptap-wrapper .tiptap ul { list-style: disc; }
+.tiptap-wrapper .tiptap ol { list-style: decimal; }
+
+.tiptap-wrapper .tiptap li {
+  margin: 0.2em 0;
+}
+
+.tiptap-wrapper .tiptap li p {
+  margin: 0;
+}
+
+.tiptap-wrapper .tiptap blockquote {
+  border-left: 3px solid #6366f1;
+  padding-left: 1.2em;
+  margin: 0.8em 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+}
+
+.tiptap-wrapper .tiptap code {
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.875em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.tiptap-wrapper .tiptap pre {
+  background: #111118;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+
+.tiptap-wrapper .tiptap pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875em;
+  line-height: 1.6;
+}
+
+.tiptap-wrapper .tiptap hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 2em 0;
+}
+
+/* Task lists */
+.tiptap-wrapper .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li label {
+  display: flex;
+  align-items: center;
+  margin-top: 0.35em;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li label input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li label input[type="checkbox"]:checked {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li label input[type="checkbox"]:checked::after {
+  content: '✓';
+  display: block;
+  color: #fff;
+  font-size: 11px;
+  text-align: center;
+  line-height: 12px;
+}
+
+.tiptap-wrapper .tiptap ul[data-type="taskList"] li[data-checked="true"] > div > p {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Mark / Highlight */
+.tiptap-wrapper .tiptap mark {
+  background: rgba(99, 102, 241, 0.25);
+  border-radius: 2px;
+  padding: 0.05em 0.15em;
+}
+
+/* Underline */
+.tiptap-wrapper .tiptap u {
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+  text-underline-offset: 3px;
+}
+
+/* Placeholder */
+.tiptap-wrapper .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+/* ── Collaboration cursors ──────────────────────────────────────────── */
+
+.collaboration-cursor__caret {
+  position: relative;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-left: 2px solid;
+  word-break: normal;
+  pointer-events: none;
+}
+
+.collaboration-cursor__label {
+  position: absolute;
+  top: -1.4em;
+  left: -1px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 1px 6px 2px;
+  border-radius: 4px 4px 4px 0;
+  color: #fff;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Selection highlight for remote users */
+.ProseMirror .yjs-cursor {
+  position: relative;
+}
+
+/* ── Slash command menu ─────────────────────────────────────────────── */
+
+.slash-menu {
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #1a1a24;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.05);
+  padding: 4px;
+}
+
+.slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item-active {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.slash-menu-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
+/* ── Keyboard shortcut hints ────────────────────────────────────────── */
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+/* ── Version History Drawer ─────────────────────────────────────────── */
+
+.version-history-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 340px;
+  max-width: 100vw;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-1, #13131f);
+  border-left: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+.version-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  cursor: default;
+}
+
+.version-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.version-item--restored {
+  border-color: rgba(74, 222, 128, 0.2);
+  background: rgba(74, 222, 128, 0.04);
+}

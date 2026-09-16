@@ -1,0 +1,39 @@
+{
+  "name": "@peergrid/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client SDK for the PeerGrid collaborative editing platform",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types":  "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev":   "tsc --project tsconfig.json --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "lib0":        "^0.2.93",
+    "y-protocols": "^1.0.6",
+    "yjs":         "^13.6.14"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.20",
+    "typescript":  "^5.3.3"
+  },
+  "keywords": [
+    "collaborative",
+    "crdt",
+    "yjs",
+    "realtime",
+    "peergrid"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,37 @@
+# ── Dependencies ───────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────
+dist/
+
+# ── Environment / Secrets ──────────────────────
+.env
+.env.local
+.env.production
+keys/
+
+# ── OS / IDE ──────────────────────────────────
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ── Logs ──────────────────────────────────────
+*.log
+
+# ── Temp files ────────────────────────────────
+tmp/
+tmp_*
+coverage/
+.turbo/
+data/
+
+# -- Scratch / local-only ---------------------------------------------------
+bench/
+demo/
+PeerGridConcept1.txt
+PeerGridCodebase1.txt
+DEMO_PREPARATION.md
+tmp_*.json
+tmp_*.txt

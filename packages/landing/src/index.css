@@ -1,0 +1,188 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --void: #030303;
+    --accent-blue: #2979FF;
+    --accent-cyan: #00E5FF;
+    --accent-violet: #7C3AED;
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: auto; /* Lenis handles this */
+  }
+
+  body {
+    background-color: var(--void);
+    color: #FAFAFA;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background: rgba(41, 121, 255, 0.4);
+    color: #fff;
+  }
+
+  /* Thin scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.16);
+  }
+}
+
+/* ── Component Classes ────────────────────────────────────────────────────── */
+@layer components {
+  /* Gradient text effects */
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #2979FF 0%, #00E5FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-violet {
+    background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-full {
+    background: linear-gradient(135deg, #2979FF 0%, #7C3AED 50%, #00E5FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Cinematic CTA button */
+  .btn-primary {
+    @apply relative inline-flex items-center justify-center gap-2 px-8 py-4
+           rounded-2xl font-semibold text-sm text-white
+           transition-all duration-300;
+    background: linear-gradient(135deg, #2979FF, #7C3AED);
+    box-shadow: 0 0 40px rgba(41,121,255,0.3), 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 0 70px rgba(41,121,255,0.5), 0 4px 30px rgba(0,0,0,0.4);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4
+           border border-white/10 rounded-2xl font-semibold text-sm text-white/70
+           transition-all duration-300 bg-white/[0.03];
+  }
+  .btn-ghost:hover {
+    @apply bg-white/[0.08] border-white/20 text-white;
+  }
+
+  /* Code block */
+  .code-block {
+    @apply bg-white/[0.04] border border-white/[0.06] rounded-xl
+           font-mono text-sm text-white/80 p-5 overflow-auto;
+  }
+
+  /* Sticky act container */
+  .act-viewport {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    z-index: 2;
+    isolation: isolate;
+  }
+
+  /* Editor panel for collaboration act */
+  .editor-panel {
+    @apply bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden backdrop-blur-sm;
+  }
+  .editor-titlebar {
+    @apply flex items-center gap-2 px-4 py-3 border-b border-white/[0.06] bg-white/[0.02];
+  }
+  .editor-dot {
+    @apply w-2.5 h-2.5 rounded-full;
+  }
+}
+
+/* ── Utility Classes ──────────────────────────────────────────────────────── */
+@layer utilities {
+  .glow-blue { box-shadow: 0 0 60px rgba(41,121,255,0.3); }
+  .glow-violet { box-shadow: 0 0 60px rgba(124,58,237,0.3); }
+  .glow-cyan { box-shadow: 0 0 60px rgba(0,229,255,0.3); }
+  .text-glow { text-shadow: 0 0 40px rgba(41,121,255,0.5); }
+  .will-change-transform { will-change: transform; }
+}
+
+/* ── R3F Canvas ───────────────────────────────────────────────────────────── */
+canvas {
+  touch-action: none;
+  outline: none;
+}
+
+/* ── Lenis ────────────────────────────────────────────────────────────────── */
+html.lenis { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* ── Custom Cursor ────────────────────────────────────────────────────────── */
+@media (pointer: fine) {
+  * { cursor: none !important; }
+  a, button { cursor: none !important; }
+}
+
+/* ── Noise grain overlay ──────────────────────────────────────────────────── */
+.noise-overlay::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.12;
+  z-index: 1;
+}
+
+/* ── Typing cursor blink ──────────────────────────────────────────────────── */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--accent-blue);
+  animation: cursorBlink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+/* ── Scroll progress bar ──────────────────────────────────────────────────── */
+.scroll-progress-bar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 100vh;
+  z-index: 100;
+  pointer-events: none;
+}
+.scroll-progress-bar .fill {
+  width: 100%;
+  background: linear-gradient(180deg, #2979FF, #7C3AED, #00E5FF);
+  transform-origin: top;
+  border-radius: 0 0 2px 2px;
+}

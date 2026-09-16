@@ -1,0 +1,41 @@
+# ── Dependencies ───────────────────────────────
+node_modules
+**/node_modules
+
+# ── Build artefacts ────────────────────────────
+**/dist
+
+# ── Version control ────────────────────────────
+.git
+.gitignore
+
+# ── IDE / Editor ───────────────────────────────
+.vscode
+.idea
+*.swp
+*.swo
+
+# ── Environment / Secrets ──────────────────────
+.env
+.env.*
+!.env.production.example
+
+# ── Logs ───────────────────────────────────────
+pnpm-debug.log
+*.log
+
+# ── Temp / Data ────────────────────────────────
+tmp/
+tmp_*
+data/
+keys/
+coverage/
+
+# ── Docs / non-essential ──────────────────────
+docs/
+*.txt
+*.md
+!README.md
+
+# ── Tests ──────────────────────────────────────
+packages/tests/

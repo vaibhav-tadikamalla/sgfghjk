@@ -1,0 +1,20 @@
+{
+  "name": "@collab/tests",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run unit/",
+    "test:integration": "vitest run integration/",
+    "test:stress": "vitest run stress/",
+    "test:fuzz": "vitest run fuzz/"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "yjs": "^13.6.0",
+    "y-protocols": "^1.0.6",
+    "lib0": "^0.2.88",
+    "uuid": "^9.0.0",
+    "@types/uuid": "^9.0.7"
+  }
+}

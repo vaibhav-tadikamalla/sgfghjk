@@ -1,0 +1,30 @@
+{
+  "name": "collaborative-editor",
+  "private": true,
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter server --filter client --filter @peergrid/landing dev",
+    "dev:app": "pnpm --parallel --filter server --filter client dev",
+    "dev:landing": "pnpm --filter @peergrid/landing dev",
+    "demo": "pnpm --filter server demo",
+    "demo:win": "pnpm --filter server demo:win",
+    "build": "pnpm --filter @collab/shared build && pnpm --filter server build && pnpm --filter client build && pnpm --filter @peergrid/landing build",
+    "build:landing": "pnpm --filter @peergrid/landing build",
+    "start": "pnpm --filter server start",
+    "start:demo": "pnpm --filter server start:demo",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "stress:32": "node packages/server/stress/stress.mjs 32",
+    "bench": "node bench/benchmark.mjs",
+    "generate-keys": "node scripts/generate-keys.mjs",
+    "deploy:render:prep": "powershell -ExecutionPolicy Bypass -File ./scripts/prepare-render-deploy.ps1",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": "20.x",
+    "pnpm": "8.x"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}
