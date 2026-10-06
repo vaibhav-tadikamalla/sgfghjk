@@ -1,24 +1,31 @@
 /**
  * benchmark/BenchmarkSimulatedEditor.ts
  *
- * A simulated editor variant instrumented for benchmark latency measurement.
+ * A simulated editor instrumented for benchmark latency measurement.
  *
- * Key differences from SimulatedEditor:
- *   1. On every edit, calls propagationTracker.recordSend() BEFORE transact()
- *   2. On every received MSG_SYNC update, calls propagationTracker.recordReceive()
- *      AFTER Y.applyUpdate()
- *   3. Supports pauseEditing() / resumeEditing() for cooldown phase
- *   4. Exposes getDocFingerprint() for convergence verification
- *   5. reconnectProbability defaults to 0 (disabled during benchmarks by default)
+ * KEY DIFFERENCES from the production SimulatedEditor:
  *
- * All Yjs protocol handling is identical to SimulatedEditor — this editor
- * connects via real WebSocket, uses real JWT auth, and speaks the full
- * Yjs sync/awareness protocol.
+ * 1. LATENCY MODE (default):
+ *    Sends INCREMENTAL Yjs delta updates (Y.encodeStateAsUpdate(ydoc, stateVectorBefore))
+ *    so exactly ONE new struct appears per update binary.
+ *    This makes (clientID, clock) correlation unambiguous and O(1) per lookup.
  *
- * Performance notes:
- *   - Y.decodeUpdate() is called on every received update, which adds ~0.1ms
- *     overhead. This is negligible vs network latency but documented.
- *   - SHA-256 fingerprinting only happens once (during convergence check).
+ * 2. LOAD MODE:
+ *    Sends FULL-STATE updates matching real production SimulatedEditor.ts behaviour
+ *    for realistic throughput/load testing. Propagation latency NOT measured.
+ *
+ * 3. Auth uses `sim-user-` prefix for userId and `sim-` prefix for fileId so
+ *    PermissionGateway's simulation bypass triggers — no DB lookup required.
+ *
+ * 4. On every received MSG_SYNC update (LATENCY mode), calls
+ *    propagationTracker.recordReceive() immediately before Y.applyUpdate().
+ *
+ * 5. Supports pauseEditing() / resumeEditing() for cooldown phase.
+ *
+ * 6. Exposes getDocFingerprint() for CRDT convergence integrity check.
+ *
+ * IMPORTANT: This editor does NOT modify production PeerGrid update semantics.
+ * The incremental delta is benchmark-specific instrumentation only.
  */
 
 import { WebSocket } from 'ws';
@@ -34,6 +41,9 @@ import type { BenchmarkPropagationTracker } from './BenchmarkPropagationTracker'
 const MSG_SYNC = 0;
 const MSG_AWARENESS = 1;
 
+/** Operating mode for the benchmark editor. */
+export type BenchmarkEditorMode = 'latency' | 'load';
+
 export interface BenchmarkSimulatedEditorConfig {
   editorId: string;
   displayName: string;
@@ -44,9 +54,13 @@ export interface BenchmarkSimulatedEditorConfig {
   reconnectProbability?: number;
   abortSignal: AbortSignal;
   propagationTracker: BenchmarkPropagationTracker;
+  /**
+   * 'latency' (default): sends incremental delta; enables t1→t2 correlation.
+   * 'load': sends full-state updates matching production SimulatedEditor.
+   */
+  mode?: BenchmarkEditorMode;
 }
 
-// Text pool for realistic-ish content
 const TEXT_POOL = [
   'The quick brown fox jumps over the lazy dog. ',
   'In distributed systems, consistency and availability are fundamental trade-offs. ',
@@ -54,7 +68,7 @@ const TEXT_POOL = [
   'CRDTs enable eventual consistency without coordination overhead. ',
   'PeerGrid uses Yjs for collaborative document editing at scale. ',
   'Benchmark results depend on network conditions and server load. ',
-  'Latency percentiles (p50, p95, p99) reveal tail behavior. ',
+  'Latency percentiles (p50, p95, p99) reveal tail behaviour. ',
   'WebSocket connections provide full-duplex communication channels. ',
   'The system processes thousands of edits per second across multiple nodes. ',
   'Load testing helps identify bottlenecks before they affect users. ',
@@ -62,6 +76,7 @@ const TEXT_POOL = [
 
 export class BenchmarkSimulatedEditor {
   private readonly config: BenchmarkSimulatedEditorConfig;
+  private readonly mode: BenchmarkEditorMode;
   private ws: WebSocket | null = null;
   private ydoc: Y.Doc;
   private awareness: awarenessProtocol.Awareness;
@@ -74,6 +89,7 @@ export class BenchmarkSimulatedEditor {
 
   constructor(config: BenchmarkSimulatedEditorConfig) {
     this.config = config;
+    this.mode = config.mode ?? 'latency';
     this.ydoc = new Y.Doc();
     this.awareness = new awarenessProtocol.Awareness(this.ydoc);
   }
@@ -112,13 +128,13 @@ export class BenchmarkSimulatedEditor {
 
         this.ws.on('open', () => {
           this._connected = true;
-          // Auth
+          // Auth — fileId MUST start with 'sim-' for PermissionGateway bypass
           this.ws!.send(JSON.stringify({
             type: 'auth',
             accessToken: this.config.accessToken,
             fileId: this.config.fileId,
           }));
-          // Sync step 1
+          // Yjs sync step 1
           const enc = encoding.createEncoder();
           encoding.writeVarUint(enc, MSG_SYNC);
           syncProtocol.writeSyncStep1(enc, this.ydoc);
@@ -178,12 +194,17 @@ export class BenchmarkSimulatedEditor {
           Y.applyUpdate(this.ydoc, update);
           if (!this.synced) { this.synced = true; }
         } else if (syncType === syncProtocol.messageYjsUpdate) {
-          // ── KEY: measure t2 here ──────────────────────────────────────────
           const update = decoding.readVarUint8Array(decoder);
-          const t2 = performance.now();
-          Y.applyUpdate(this.ydoc, update);
-          // Record receive — tracker extracts clientId/clock from update bytes
-          this.config.propagationTracker.recordReceive(this.config.editorId, update, t2);
+
+          if (this.mode === 'latency') {
+            // t2 captured immediately when bytes arrive; before CRDT processing
+            const t2 = performance.now();
+            Y.applyUpdate(this.ydoc, update);
+            // Pass raw incremental update to tracker; O(1) struct lookup
+            this.config.propagationTracker.recordReceive(this.config.editorId, update, t2);
+          } else {
+            Y.applyUpdate(this.ydoc, update);
+          }
         }
       } else if (msgType === MSG_AWARENESS) {
         const decoder = decoding.createDecoder(data);
@@ -192,7 +213,7 @@ export class BenchmarkSimulatedEditor {
         awarenessProtocol.applyAwarenessUpdate(this.awareness, update, null);
       }
     } catch {
-      // Ignore (JSON control messages, auth success, etc.)
+      // Ignore — JSON control messages (auth_success, ping, etc.)
     }
   }
 
@@ -211,7 +232,6 @@ export class BenchmarkSimulatedEditor {
     const jitter = 0.5 + Math.random() * 1.5;
     const idleBurst = Math.random() < 0.1 ? (500 + Math.random() * 3000) : 0;
     const delay = baseDelay * jitter + idleBurst;
-
     this.loopTimer = setTimeout(() => void this.editCycle(), delay);
   }
 
@@ -227,38 +247,61 @@ export class BenchmarkSimulatedEditor {
 
   private performEdit(): void {
     const ytext = this.ydoc.getText('default');
-    const pool = TEXT_POOL;
-    const source = pool[Math.floor(Math.random() * pool.length)]!;
+    const source = TEXT_POOL[Math.floor(Math.random() * TEXT_POOL.length)]!;
     const burst = Math.max(1, Math.min(20, Math.floor(5 + Math.random() * 15)));
     const snippet = source.slice(0, burst);
     const insertPos = Math.floor(Math.random() * (ytext.length + 1));
 
-    // ── KEY: capture t1 and clock BEFORE transact ─────────────────────────────
-    const senderClientId = this.ydoc.clientID;
-    // Get current max clock for this client (before the transact increments it)
-    const clientClock = (this.ydoc.store.clients.get(senderClientId)?.length ?? 0);
-    const t1 = performance.now();
+    if (this.mode === 'latency') {
+      // ── LATENCY MODE: incremental delta update ──────────────────────────────
+      //
+      // Capture state vector BEFORE transact. After transact,
+      // Y.encodeStateAsUpdate(ydoc, stateVectorBefore) produces binary
+      // containing ONLY the one newly created struct. That struct has:
+      //   struct.id.client === this.ydoc.clientID
+      //   struct.id.clock  === clockBefore
+      //
+      // recordReceive() in LATENCY mode receives this incremental update and
+      // finds the match on the first iteration — O(1), not O(doc size).
 
-    this.config.propagationTracker.recordSend(
-      this.config.editorId,
-      senderClientId,
-      clientClock,
-      t1,
-    );
+      const stateVectorBefore = Y.encodeStateVector(this.ydoc);
+      const senderClientId = this.ydoc.clientID;
+      const clockBefore = this.ydoc.store.clients.get(senderClientId)?.length ?? 0;
+      const t1 = performance.now();
 
-    // Apply the edit
-    this.ydoc.transact(() => {
-      ytext.insert(insertPos, snippet);
-    });
+      this.config.propagationTracker.recordSend(
+        this.config.editorId,
+        senderClientId,
+        clockBefore,
+        t1,
+      );
 
-    // Encode and send as update (messageYjsUpdate = 2)
-    const enc = encoding.createEncoder();
-    encoding.writeVarUint(enc, MSG_SYNC);
-    encoding.writeVarUint(enc, 2); // messageYjsUpdate
-    // Send only the diff since last encoding
-    const stateUpdate = Y.encodeStateAsUpdate(this.ydoc);
-    encoding.writeVarUint8Array(enc, stateUpdate);
-    this.wsSend(encoding.toUint8Array(enc));
+      this.ydoc.transact(() => {
+        ytext.insert(insertPos, snippet);
+      });
+
+      // Encode only new structs since stateVectorBefore
+      const deltaUpdate = Y.encodeStateAsUpdate(this.ydoc, stateVectorBefore);
+
+      const enc = encoding.createEncoder();
+      encoding.writeVarUint(enc, MSG_SYNC);
+      encoding.writeVarUint(enc, 2); // messageYjsUpdate
+      encoding.writeVarUint8Array(enc, deltaUpdate);
+      this.wsSend(encoding.toUint8Array(enc));
+
+    } else {
+      // ── LOAD MODE: full-state update (matches production SimulatedEditor.ts) ─
+      this.ydoc.transact(() => {
+        ytext.insert(insertPos, snippet);
+      });
+
+      const fullUpdate = Y.encodeStateAsUpdate(this.ydoc);
+      const enc = encoding.createEncoder();
+      encoding.writeVarUint(enc, MSG_SYNC);
+      encoding.writeVarUint(enc, 2); // messageYjsUpdate
+      encoding.writeVarUint8Array(enc, fullUpdate);
+      this.wsSend(encoding.toUint8Array(enc));
+    }
 
     this._editsGenerated++;
   }
@@ -266,8 +309,12 @@ export class BenchmarkSimulatedEditor {
   // ── Convergence fingerprint ───────────────────────────────────────────────────
 
   /**
-   * Returns a SHA-256 hex fingerprint of the current Y.Doc state.
-   * Two editors with identical fingerprints have converged.
+   * SHA-256 of full Y.Doc state. Used as CRDT integrity check:
+   * all editors must match. Expected to always be true in-process
+   * (Yjs guarantees it). Failure indicates a software bug.
+   *
+   * NOTE: this is NOT a distributed partition-recovery test.
+   * For that, use the chaos engineering infrastructure separately.
    */
   getDocFingerprint(): string {
     try {

@@ -2,34 +2,55 @@
  * unit/benchmark-config.test.ts
  *
  * Tests for BenchmarkConfig validation logic.
+ *
+ * IMPORTANT: validateBenchmarkConfig now checks targetUrl against the
+ * BENCHMARK_ALLOWED_TARGETS allowlist. Tests set this env var explicitly
+ * so the allowlist is predictable and isolated from machine configuration.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { validateBenchmarkConfig } from '../../packages/server/src/benchmark/BenchmarkEngine';
+
+// Set a controlled allowlist for all tests in this file
+const ALLOWED_LOCAL = 'ws://localhost:3001/ws';
+const ALLOWED_DEPLOYED = 'wss://peergriddemo-api.onrender.com/ws';
+
+beforeEach(() => {
+  process.env['BENCHMARK_ALLOWED_TARGETS'] = `${ALLOWED_LOCAL},${ALLOWED_DEPLOYED}`;
+});
+
+afterEach(() => {
+  delete process.env['BENCHMARK_ALLOWED_TARGETS'];
+});
 
 describe('validateBenchmarkConfig', () => {
   const VALID: Parameters<typeof validateBenchmarkConfig>[0] = {
     userCount: 5,
     durationSeconds: 60,
-    targetUrl: 'ws://localhost:3001/ws',
+    targetUrl: ALLOWED_LOCAL,
   };
 
-  it('accepts a valid minimal config', () => {
+  it('accepts a valid minimal config with local target', () => {
     expect(validateBenchmarkConfig(VALID)).toHaveLength(0);
   });
 
-  it('accepts a ws:// URL', () => {
-    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'ws://example.com/ws' });
+  it('accepts the deployed wss:// target from allowlist', () => {
+    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: ALLOWED_DEPLOYED });
     expect(errs).toHaveLength(0);
   });
 
-  it('accepts a wss:// URL', () => {
-    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'wss://example.com/ws' });
-    expect(errs).toHaveLength(0);
-  });
-
-  it('rejects http:// URL', () => {
+  it('rejects a URL not in the allowlist (http://)', () => {
     const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'http://example.com' });
+    expect(errs.some(e => e.field === 'targetUrl')).toBe(true);
+  });
+
+  it('rejects a URL not in the allowlist (arbitrary ws://)', () => {
+    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'ws://attacker.com/ws' });
+    expect(errs.some(e => e.field === 'targetUrl')).toBe(true);
+  });
+
+  it('rejects internal/private address not in allowlist', () => {
+    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'ws://127.0.0.1:6379' });
     expect(errs.some(e => e.field === 'targetUrl')).toBe(true);
   });
 
@@ -104,6 +125,27 @@ describe('validateBenchmarkConfig', () => {
       durationSeconds: 1,
       targetUrl: 'not-a-url',
     });
+    // userCount invalid + durationSeconds invalid + targetUrl not in allowlist
     expect(errs.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('accepts benchmarkMode latency', () => {
+    const errs = validateBenchmarkConfig({ ...VALID, benchmarkMode: 'latency' });
+    expect(errs).toHaveLength(0);
+  });
+
+  it('accepts benchmarkMode load', () => {
+    const errs = validateBenchmarkConfig({ ...VALID, benchmarkMode: 'load' });
+    expect(errs).toHaveLength(0);
+  });
+
+  it('uses local fallback when BENCHMARK_ALLOWED_TARGETS not set', () => {
+    delete process.env['BENCHMARK_ALLOWED_TARGETS'];
+    // Without env var, getAllowedBenchmarkTargets() falls back to ws://localhost:<PORT>/ws
+    // which won't be ws://localhost:3001/ws unless PORT=3001
+    process.env['PORT'] = '3001';
+    const errs = validateBenchmarkConfig({ ...VALID, targetUrl: 'ws://localhost:3001/ws' });
+    expect(errs.some(e => e.field === 'targetUrl')).toBe(false);
+    delete process.env['PORT'];
   });
 });

@@ -55,7 +55,7 @@ export interface BenchmarkConfig {
   reconnectProbability?: number;
   /** Milliseconds between spawning each editor. Default: 100. */
   spawnDelayMs?: number;
-  /** Target WebSocket URL. Must start with ws:// or wss://. */
+  /** Target WebSocket URL. Must be in BENCHMARK_ALLOWED_TARGETS list. */
   targetUrl: string;
   /** Room/file ID. Auto-generated if not set. */
   targetRoom?: string;
@@ -63,6 +63,34 @@ export interface BenchmarkConfig {
   seed?: number;
   /** Collect and include resource metric snapshots. Default: true. */
   collectResourceMetrics?: boolean;
+  /**
+   * Benchmark operating mode.
+   * 'latency' (default): sends incremental Yjs delta updates. Enables reliable
+   *   t1→t2 propagation latency measurement. Results labeled as
+   *   "In-process propagation latency (latency mode)".
+   * 'load': sends full-state updates matching production SimulatedEditor.ts
+   *   behaviour. Maximises server-side load realism. Latency NOT measured.
+   *   Results labeled as "In-process load test (load mode)".
+   */
+  benchmarkMode?: 'latency' | 'load';
+}
+
+/**
+ * Returns the list of allowed benchmark target WebSocket URLs.
+ * Read from BENCHMARK_ALLOWED_TARGETS env var (comma-separated).
+ * Falls back to localhost on the current server port if not set.
+ *
+ * SECURITY: This prevents SSRF — admin users cannot point the benchmark
+ * at arbitrary internal services or external attacker-controlled endpoints.
+ */
+export function getAllowedBenchmarkTargets(): string[] {
+  const raw = process.env['BENCHMARK_ALLOWED_TARGETS'] ?? '';
+  if (raw.trim()) {
+    return raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  // Default: allow local server only
+  const port = process.env['PORT'] ?? '3001';
+  return [`ws://localhost:${port}/ws`];
 }
 
 export type BenchmarkPhase = 'idle' | 'warmup' | 'measurement' | 'cooldown' | 'convergence' | 'persisting' | 'completed' | 'failed' | 'cancelled';
@@ -113,8 +141,17 @@ export function validateBenchmarkConfig(config: BenchmarkConfig): ValidationErro
   if (config.typingSpeed !== undefined && (!Number.isFinite(config.typingSpeed) || config.typingSpeed <= 0 || config.typingSpeed > 50)) {
     errors.push({ field: 'typingSpeed', message: 'typingSpeed must be between 0.1 and 50 chars/sec' });
   }
-  if (!config.targetUrl || !/^wss?:\/\/.+/.test(config.targetUrl)) {
-    errors.push({ field: 'targetUrl', message: 'targetUrl must be a valid ws:// or wss:// URL' });
+  if (!config.targetUrl) {
+    errors.push({ field: 'targetUrl', message: 'targetUrl is required' });
+  } else {
+    // SSRF guard: target must be in the configured allowlist
+    const allowed = getAllowedBenchmarkTargets();
+    if (!allowed.includes(config.targetUrl)) {
+      errors.push({
+        field: 'targetUrl',
+        message: `targetUrl must be one of: `+allowed.join(', '),
+      });
+    }
   }
 
   return errors;
@@ -167,7 +204,7 @@ export class BenchmarkEngine {
     }
 
     const runId = randomUUID();
-    const targetRoom = config.targetRoom ?? `bench-${runId.slice(0, 8)}`;
+    const targetRoom = config.targetRoom ?? `sim-bench-`+runId.slice(0, 8);
     const fullConfig: BenchmarkConfig = { ...config, targetRoom };
 
     // Insert DB record
@@ -257,7 +294,7 @@ export class BenchmarkEngine {
         if (signal.aborted) break;
 
         const editorId = `bench-editor-${i + 1}-${runId.slice(0, 6)}`;
-        const userId = `bench-user-${randomUUID()}`;
+        const userId = `sim-user-`+randomUUID();
         connectionAttempts++;
 
         let accessToken: string;

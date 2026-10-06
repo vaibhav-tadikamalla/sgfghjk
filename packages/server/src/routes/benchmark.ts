@@ -6,21 +6,28 @@
  * All endpoints require admin auth (identical to simulation.ts pattern).
  *
  * Routes:
- *   POST   /admin/benchmark/run            — start a benchmark run
- *   POST   /admin/benchmark/cancel         — cancel the running benchmark
- *   GET    /admin/benchmark/status         — live status
- *   GET    /admin/benchmark/runs           — list persisted runs (paginated)
- *   GET    /admin/benchmark/runs/:id       — single run detail
+ *   POST   /admin/benchmark/run             — start a benchmark run
+ *   POST   /admin/benchmark/cancel          — cancel the running benchmark
+ *   GET    /admin/benchmark/status          — live status
+ *   GET    /admin/benchmark/targets         — allowed target URLs (SSRF allowlist)
+ *   GET    /admin/benchmark/runs            — list persisted runs (paginated)
+ *   GET    /admin/benchmark/runs/:id        — single run detail
  *   GET    /admin/benchmark/runs/:id/export.json  — JSON export
  *   GET    /admin/benchmark/runs/:id/export.csv   — CSV export
- *   DELETE /admin/benchmark/runs/:id       — delete a run record
- *   POST   /admin/benchmark/matrix         — run academic matrix (sequential)
+ *   DELETE /admin/benchmark/runs/:id        — delete a run record
+ *   POST   /admin/benchmark/matrix          — run academic matrix (sequential)
+ *   POST   /admin/benchmark/mint-token      — mint JWT for external CLI runner
+ *   POST   /admin/benchmark/external-result — receive results from external CLI
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { verifyAccessToken } from '../auth/jwt';
-import { getBenchmarkEngine, validateBenchmarkConfig } from '../benchmark/BenchmarkEngine';
+import {
+  getBenchmarkEngine,
+  validateBenchmarkConfig,
+  getAllowedBenchmarkTargets,
+} from '../benchmark/BenchmarkEngine';
 import { query } from '../db/pool';
 
 // ── Auth (identical pattern to simulation.ts) ─────────────────────────────────
@@ -99,10 +106,11 @@ export async function registerBenchmarkRoutes(app: FastifyInstance): Promise<voi
       typingSpeed: body['typingSpeed'] != null ? Number(body['typingSpeed']) : undefined,
       reconnectProbability: body['reconnectProbability'] != null ? Number(body['reconnectProbability']) : 0,
       spawnDelayMs: body['spawnDelayMs'] != null ? Number(body['spawnDelayMs']) : undefined,
-      targetUrl: String(body['targetUrl'] ?? `ws://localhost:${process.env['PORT'] ?? '3001'}/ws`),
+      targetUrl: String(body['targetUrl'] ?? getAllowedBenchmarkTargets()[0] ?? `ws://localhost:${process.env['PORT'] ?? '3001'}/ws`),
       targetRoom: body['targetRoom'] != null ? String(body['targetRoom']) : undefined,
       seed: body['seed'] != null ? Number(body['seed']) : undefined,
       collectResourceMetrics: body['collectResourceMetrics'] != null ? Boolean(body['collectResourceMetrics']) : true,
+      benchmarkMode: (['latency', 'load'].includes(String(body['benchmarkMode'])) ? String(body['benchmarkMode']) : 'latency') as 'latency' | 'load',
     };
 
     const errors = validateBenchmarkConfig(config);
@@ -157,6 +165,17 @@ export async function registerBenchmarkRoutes(app: FastifyInstance): Promise<voi
     if (!(await requireAdminToken(request, reply, adminSecret))) return;
     const engine = getBenchmarkEngine();
     return reply.send(engine.status);
+  });
+
+  /**
+   * GET /admin/benchmark/targets
+   * Returns the list of allowed benchmark target WebSocket URLs.
+   * Configured via BENCHMARK_ALLOWED_TARGETS env var (comma-separated).
+   * The UI uses this list to build a dropdown — no arbitrary URL entry.
+   */
+  app.get('/admin/benchmark/targets', async (request, reply) => {
+    if (!(await requireAdminToken(request, reply, adminSecret))) return;
+    return reply.send({ targets: getAllowedBenchmarkTargets() });
   });
 
   /**
@@ -319,12 +338,12 @@ export async function registerBenchmarkRoutes(app: FastifyInstance): Promise<voi
    *
    * Body:
    * {
-   *   userMatrix?: number[],       -- default [1, 5, 10, 20, 30, 40, 50]
+   *   userMatrix?: number[],        -- default [1, 5, 10, 20, 30, 40, 50]
    *   typingSpeedMatrix?: number[], -- default [2]
-   *   durationSeconds?: number,    -- default 60
+   *   durationSeconds?: number,     -- default 60
    *   warmupSeconds?: number,
    *   cooldownSeconds?: number,
-   *   targetUrl?: string
+   *   targetUrl?: string            -- must be in allowlist
    * }
    *
    * Returns a list of run IDs in order. Runs execute asynchronously in sequence.
@@ -349,10 +368,11 @@ export async function registerBenchmarkRoutes(app: FastifyInstance): Promise<voi
     const durationSeconds = Math.max(10, Math.min(600, Number(body['durationSeconds'] ?? 60)));
     const warmupSeconds = body['warmupSeconds'] != null ? Number(body['warmupSeconds']) : 15;
     const cooldownSeconds = body['cooldownSeconds'] != null ? Number(body['cooldownSeconds']) : 10;
-    const targetUrl = String(body['targetUrl'] ?? `ws://localhost:${process.env['PORT'] ?? '3001'}/ws`);
+    const allowed = getAllowedBenchmarkTargets();
+    const targetUrl = String(body['targetUrl'] ?? allowed[0] ?? `ws://localhost:${process.env['PORT'] ?? '3001'}/ws`);
 
-    if (!/^wss?:\/\/.+/.test(targetUrl)) {
-      return reply.code(400).send({ error: 'Bad Request', message: 'targetUrl must be a valid ws:// or wss:// URL' });
+    if (!allowed.includes(targetUrl)) {
+      return reply.code(400).send({ error: 'Bad Request', message: `targetUrl must be one of: ${allowed.join(', ')}` });
     }
 
     const totalCells = userMatrix.length * typingSpeedMatrix.length;
@@ -390,6 +410,85 @@ export async function registerBenchmarkRoutes(app: FastifyInstance): Promise<voi
       message: `Matrix of ${cells.length} benchmark runs queued. They will execute sequentially.`,
     });
   });
+
+  /**
+   * POST /admin/benchmark/mint-token
+   *
+   * Mints a JWT for a simulated benchmark editor, for use by the external CLI
+   * runner on the admin's laptop. The userId starts with 'sim-user-' and the
+   * fileId starts with 'sim-' so PermissionGateway's bypass triggers and no
+   * DB user record is required.
+   *
+   * Body: { editorIndex: number, runId?: string, fileId?: string }
+   * Returns: { token: string, fileId: string, editorId: string, userId: string }
+   */
+  app.post('/admin/benchmark/mint-token', async (request, reply) => {
+    if (!(await requireAdminToken(request, reply, adminSecret))) return;
+
+    const body = (request.body as Record<string, unknown>) ?? {};
+    const editorIndex = Number(body['editorIndex'] ?? 1);
+    const runId = body['runId'] ? String(body['runId']) : randomUUID();
+    const fileId = body['fileId'] ? String(body['fileId']) : `sim-ext-bench-${runId.slice(0, 8)}`;
+
+    // userId MUST start with 'sim-user-' for PermissionGateway bypass (no DB lookup)
+    const userId = `sim-user-ext-${runId.slice(0, 8)}-${editorIndex}`;
+    const editorId = `ext-editor-${editorIndex}-${runId.slice(0, 6)}`;
+
+    try {
+      const { generateAccessToken } = await import('../auth/jwt');
+      const { token } = await generateAccessToken({
+        id: userId,
+        email: `${editorId}@ext-bench.peergrid.local`,
+        displayName: `ExtBench ${editorIndex}`,
+      });
+      return reply.send({ token, fileId, editorId, userId });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      return reply.code(500).send({ error: 'Internal Server Error', message: msg });
+    }
+  });
+
+  /**
+   * POST /admin/benchmark/external-result
+   *
+   * Receives results from the external CLI benchmark runner and persists
+   * them to the benchmark_runs table so they appear in the Admin Dashboard.
+   *
+   * Body: { results: ExternalResult[] }
+   * Returns: { status: 'ok', inserted: number, runIds: string[] }
+   */
+  app.post('/admin/benchmark/external-result', async (request, reply) => {
+    if (!(await requireAdminToken(request, reply, adminSecret))) return;
+
+    const body = (request.body as Record<string, unknown>) ?? {};
+    const rawResults = Array.isArray(body['results']) ? body['results'] : [body];
+
+    const inserted: string[] = [];
+    for (const r of rawResults) {
+      if (typeof r !== 'object' || !r) continue;
+      const result = r as Record<string, unknown>;
+      const runId = result['runId'] ? String(result['runId']) : randomUUID();
+      const targetUrl = String(result['target'] ?? 'external');
+      const label = String(result['label'] ?? 'External benchmark');
+      const env = JSON.stringify({ source: 'external-cli', label, mode: result['mode'] ?? 'latency' });
+      const cfg = JSON.stringify(result['config'] ?? {});
+
+      try {
+        await query(
+          `INSERT INTO benchmark_runs (id, status, target_url, environment, config, results, started_at, completed_at)
+           VALUES ($1, 'completed', $2, $3, $4, $5, NOW(), NOW())
+           ON CONFLICT (id) DO UPDATE
+             SET status = 'completed', results = EXCLUDED.results, completed_at = NOW()`,
+          [runId, targetUrl, env, cfg, JSON.stringify(result)],
+        );
+        inserted.push(runId);
+      } catch (err) {
+        app.log?.error({ err, runId }, 'Failed to insert external benchmark result');
+      }
+    }
+
+    return reply.send({ status: 'ok', inserted: inserted.length, runIds: inserted });
+  });
 }
 
 // ── Matrix runner (background, sequential) ────────────────────────────────────
@@ -418,7 +517,7 @@ async function runMatrixSequential(
         warmupSeconds: shared.warmupSeconds,
         cooldownSeconds: shared.cooldownSeconds,
         targetUrl: shared.targetUrl,
-        targetRoom: `bench-matrix-${runId.slice(0, 8)}`,
+        targetRoom: `sim-bench-matrix-${runId.slice(0, 8)}`,
       });
 
       // Wait for this run to complete before starting next
