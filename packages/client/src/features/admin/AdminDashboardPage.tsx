@@ -14,8 +14,9 @@ import { SimulationDashboard } from './SimulationDashboard';
 import { ClusterSimulationPanel } from './ClusterSimulationPanel';
 import { ChaosEngineeringPanel } from './ChaosEngineeringPanel';
 import { ReplayPanel } from './ReplayPanel';
+import { BenchmarkPage } from './BenchmarkPage';
 
-type Tab = 'overview' | 'rooms' | 'users' | 'charts' | 'health' | 'heatmap' | 'topology' | 'activity' | 'simulator';
+type Tab = 'overview' | 'rooms' | 'users' | 'charts' | 'health' | 'heatmap' | 'topology' | 'activity' | 'simulator' | 'benchmark';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -27,6 +28,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'charts', label: 'Metrics' },
   { id: 'health', label: 'Health' },
   { id: 'simulator', label: 'Simulator' },
+  { id: 'benchmark', label: 'Benchmark' },
 ];
 
 export default function AdminDashboardPage() {
@@ -223,6 +225,11 @@ export default function AdminDashboardPage() {
                   <ReplayPanel snapshot={replayStatus.data} clusterRunning={clusterSimulation.data.state === 'running'} />
                 </div>
               </div>
+            )}
+
+            {/* Benchmark tab */}
+            {tab === 'benchmark' && (
+              <BenchmarkPage />
             )}
           </>
         )}

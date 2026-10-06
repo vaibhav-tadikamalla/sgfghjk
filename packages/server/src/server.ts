@@ -21,6 +21,7 @@ import { registerDebugRoutes } from './routes/debug';
 import { registerAdminRoutes } from './routes/admin';
 import { registerAdminDashboardRoutes } from './routes/admin-dashboard';
 import { registerSimulationRoutes } from './routes/simulation';
+import { registerBenchmarkRoutes } from './routes/benchmark';
 import { registerRoutingRoutes } from './routes/routing';
 import { registerVersionRoutes } from './routes/versions';
 import { register as metricsRegistry } from './metrics/metrics';
@@ -142,6 +143,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await registerAdminRoutes(app);
   await registerAdminDashboardRoutes(app);
   await registerSimulationRoutes(app);
+  await registerBenchmarkRoutes(app);
   await registerRoutingRoutes(app);
   await registerVersionRoutes(app);
 
