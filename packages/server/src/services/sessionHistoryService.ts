@@ -45,6 +45,10 @@ export const sessionHistoryService = {
    * must continue its cleanup regardless of DB availability.
    */
   async recordSession(data: SessionRecord): Promise<void> {
+    if (data.userId.startsWith('sim-user-') || data.workspaceId.startsWith('sim-')) {
+      return;
+    }
+
     const durationSeconds = Math.max(
       0,
       Math.round((data.sessionEndMs - data.sessionStartMs) / 1_000),
