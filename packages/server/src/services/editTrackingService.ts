@@ -45,6 +45,8 @@ export interface AvgEditsPerMinuteByUserFile {
 export const editTrackingService = {
   /** Start an edit session for a user on a file. Reuses an active session if one exists. */
   async startSession(fileId: string, userId: string): Promise<string> {
+    // Simulation bypass: sim-* rooms/users are ephemeral
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return 'sim-session';
     // Check for existing active session
     const existing = await query<{ id: string }>(
       `SELECT id FROM edit_sessions
@@ -63,6 +65,7 @@ export const editTrackingService = {
 
   /** End an edit session. */
   async endSession(fileId: string, userId: string): Promise<void> {
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return;
     await query(
       `UPDATE edit_sessions SET ended_at = NOW()
        WHERE file_id = $1 AND user_id = $2 AND ended_at IS NULL`,
@@ -72,6 +75,7 @@ export const editTrackingService = {
 
   /** Increment edits count for the active session. */
   async incrementEdits(fileId: string, userId: string): Promise<void> {
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return;
     await query(
       `UPDATE edit_sessions SET edits_count = edits_count + 1
        WHERE file_id = $1 AND user_id = $2 AND ended_at IS NULL`,
@@ -81,6 +85,7 @@ export const editTrackingService = {
 
   /** Increment edits count by N (batched flush from in-memory accumulator). */
   async incrementEditsBy(fileId: string, userId: string, count: number): Promise<void> {
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return;
     await query(
       `UPDATE edit_sessions SET edits_count = edits_count + $3
        WHERE file_id = $1 AND user_id = $2 AND ended_at IS NULL`,
@@ -90,6 +95,7 @@ export const editTrackingService = {
 
   /** Increment paste-events count by N for an active edit session. */
   async incrementPasteEventsBy(fileId: string, userId: string, count: number): Promise<void> {
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return;
     await query(
       `UPDATE edit_sessions SET paste_events_count = paste_events_count + $3
        WHERE file_id = $1 AND user_id = $2 AND ended_at IS NULL`,

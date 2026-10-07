@@ -21,6 +21,8 @@ export const activityService = {
     entityId: string,
     metadata: Record<string, unknown> = {},
   ): Promise<void> {
+    // Simulation bypass: sim-* users/rooms are ephemeral, skip activity logging
+    if (userId.startsWith('sim-user-') || entityId.startsWith('sim-')) return;
     await query(
       `INSERT INTO activity_logs (user_id, action_type, entity_type, entity_id, metadata)
        VALUES ($1, $2, $3, $4, $5)`,

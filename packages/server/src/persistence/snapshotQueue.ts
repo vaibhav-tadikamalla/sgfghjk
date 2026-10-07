@@ -75,6 +75,8 @@ let writesThisWindow = 0;
  * Never throws.
  */
 export function enqueueSnapshot(fileId: string, update: Buffer): void {
+  // Simulation bypass: sim-* rooms are ephemeral, don't persist snapshots
+  if (fileId.startsWith('sim-')) return;
   // Dedup: if the key already exists, queue.set() below will overwrite in-place
   // (no ordering change), so we only need overflow eviction for NEW keys.
   if (!queue.has(fileId) && queue.size >= MAX_SNAPSHOT_QUEUE) {

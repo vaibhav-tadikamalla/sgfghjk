@@ -152,6 +152,8 @@ export const fileService = {
 
   /** Save Yjs document state for a file. */
   async saveYdocState(fileId: string, state: Buffer): Promise<void> {
+    // Simulation bypass: sim-* rooms are ephemeral, don't persist state
+    if (fileId.startsWith('sim-')) return;
     await query(
       'UPDATE files SET ydoc_state = $1 WHERE id = $2',
       [state, fileId],
@@ -160,6 +162,8 @@ export const fileService = {
 
   /** Load Yjs document state for a file. */
   async loadYdocState(fileId: string): Promise<Buffer | null> {
+    // Simulation bypass: sim-* rooms are ephemeral, no DB state to load
+    if (fileId.startsWith('sim-')) return null;
     const result = await query<{ ydoc_state: Buffer | null }>(
       'SELECT ydoc_state FROM files WHERE id = $1',
       [fileId],
@@ -169,6 +173,8 @@ export const fileService = {
 
   /** Update last edited metadata. */
   async updateLastEdited(fileId: string, userId: string): Promise<void> {
+    // Simulation bypass: sim-* rooms are ephemeral, no DB update needed
+    if (fileId.startsWith('sim-') || userId.startsWith('sim-user-')) return;
     await query(
       'UPDATE files SET last_edited_by = $1, last_edited_at = NOW() WHERE id = $2',
       [userId, fileId],

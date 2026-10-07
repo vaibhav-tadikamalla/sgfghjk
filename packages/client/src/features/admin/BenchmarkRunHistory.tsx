@@ -57,6 +57,7 @@ export function BenchmarkRunHistory({ runs, total, selectedRunId, onSelect }: Pr
           <thead>
             <tr className="border-b border-zinc-700 text-zinc-500">
               <th className="px-3 py-2 text-left font-medium">Status</th>
+              <th className="px-3 py-2 text-left font-medium">Mode</th>
               <th className="px-3 py-2 text-left font-medium">Started</th>
               <th className="px-3 py-2 text-right font-medium">Users</th>
               <th className="px-3 py-2 text-right font-medium">Duration</th>
@@ -84,6 +85,11 @@ export function BenchmarkRunHistory({ runs, total, selectedRunId, onSelect }: Pr
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_STYLES[run.status] ?? ''}`}>
                       {run.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {run.environment?.['source'] === 'external-cli' ? 'External' : (cfg.benchmarkMode === 'load' ? 'Load' : 'Latency')}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-zinc-400 whitespace-nowrap">

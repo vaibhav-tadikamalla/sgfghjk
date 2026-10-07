@@ -55,7 +55,7 @@ export function BenchmarkRunDetail({ runId, onClose }: Props) {
             Run <code className="text-blue-300">{runId.slice(0, 8)}</code>
           </h3>
           <p className="text-xs text-zinc-500 mt-0.5">
-            {new Date(run.created_at).toLocaleString()} · {run.status} · {cfg.userCount} users
+            {new Date(run.created_at).toLocaleString()} · {run.status} · {cfg.userCount} users · {run.environment?.['source'] === 'external-cli' ? 'External CLI (end-to-end)' : (cfg.benchmarkMode === 'load' ? 'Load test mode' : 'Latency mode (t₁→t₂)')}
           </p>
         </div>
         <div className="flex items-center gap-2">

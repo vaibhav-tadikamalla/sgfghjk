@@ -8,14 +8,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { benchmarkApi, type BenchmarkConfig } from './benchmarkApi';
 
-const POLL_INTERVAL = 2_000; // 2s — faster during active runs
-
 export function useBenchmarkStatus() {
   return useQuery({
     queryKey: ['admin', 'benchmark', 'status'],
     queryFn: benchmarkApi.getStatus,
-    refetchInterval: POLL_INTERVAL,
-    staleTime: 500,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const isRunning = data && !['idle', 'completed', 'failed', 'cancelled'].includes(data.phase);
+      return isRunning ? 1_000 : 3_000;
+    },
+    staleTime: 200,
+  });
+}
+
+export function useBenchmarkTargets() {
+  return useQuery({
+    queryKey: ['admin', 'benchmark', 'targets'],
+    queryFn: benchmarkApi.getTargets,
+    staleTime: 30_000,
   });
 }
 

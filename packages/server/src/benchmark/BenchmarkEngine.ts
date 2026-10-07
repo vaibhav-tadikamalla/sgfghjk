@@ -95,6 +95,13 @@ export function getAllowedBenchmarkTargets(): string[] {
 
 export type BenchmarkPhase = 'idle' | 'warmup' | 'measurement' | 'cooldown' | 'convergence' | 'persisting' | 'completed' | 'failed' | 'cancelled';
 
+export interface SimulatedUserStatus {
+  editorId: string;
+  displayName: string;
+  isConnected: boolean;
+  editsCount: number;
+}
+
 export interface BenchmarkLiveStatus {
   runId: string | null;
   phase: BenchmarkPhase;
@@ -103,16 +110,34 @@ export interface BenchmarkLiveStatus {
   phaseStartedAt: number | null;
   elapsedMs: number;
   phaseElapsedMs: number;
+  totalDurationMs: number;
+  remainingMs: number;
+  progressPercent: number;
+  totalExpectedUsers: number;
   /** Number of editors currently connected. */
   activeEditors: number;
+  /** Operations attempted (edits generated). */
+  opsAttempted: number;
+  /** Operations successfully propagated. */
+  opsPropagated: number;
   /** Live latency samples collected so far (measurement phase only). */
   samplesCollected: number;
-  /** Estimated live p50 from current samples (0 if <10 samples). */
+  /** Estimated live p50 from current samples. */
   liveP50Ms: number;
-  /** Estimated live p95 from current samples (0 if <10 samples). */
+  /** Estimated live p95 from current samples. */
   liveP95Ms: number;
+  /** Estimated live p99 from current samples. */
+  liveP99Ms: number;
+  /** Latency of the most recently received sample. */
+  latestLatencyMs: number;
+  /** Last 20 latency samples in ms for live visualization. */
+  recentLatencies: number[];
   /** Edits per second (snapshot). */
   editsPerSecond: number;
+  /** Convergence state. */
+  convergenceStatus: 'pending' | 'testing' | 'converged' | 'failed';
+  /** List of simulated users and their individual state. */
+  simulatedUsers: SimulatedUserStatus[];
   error: string | null;
 }
 
@@ -168,11 +193,22 @@ export class BenchmarkEngine {
     phaseStartedAt: null,
     elapsedMs: 0,
     phaseElapsedMs: 0,
+    totalDurationMs: 0,
+    remainingMs: 0,
+    progressPercent: 0,
+    totalExpectedUsers: 0,
     activeEditors: 0,
+    opsAttempted: 0,
+    opsPropagated: 0,
     samplesCollected: 0,
     liveP50Ms: 0,
     liveP95Ms: 0,
+    liveP99Ms: 0,
+    latestLatencyMs: 0,
+    recentLatencies: [],
     editsPerSecond: 0,
+    convergenceStatus: 'pending',
+    simulatedUsers: [],
     error: null,
   };
 
@@ -221,6 +257,11 @@ export class BenchmarkEngine {
       [runId],
     );
 
+    const warmupMs = (fullConfig.warmupSeconds ?? 15) * 1000;
+    const durationMs = fullConfig.durationSeconds * 1000;
+    const cooldownMs = (fullConfig.cooldownSeconds ?? 10) * 1000;
+    const totalDurationMs = warmupMs + durationMs + cooldownMs;
+
     this._status = {
       runId,
       phase: 'warmup',
@@ -229,11 +270,22 @@ export class BenchmarkEngine {
       phaseStartedAt: Date.now(),
       elapsedMs: 0,
       phaseElapsedMs: 0,
+      totalDurationMs,
+      remainingMs: totalDurationMs,
+      progressPercent: 0,
+      totalExpectedUsers: fullConfig.userCount,
       activeEditors: 0,
+      opsAttempted: 0,
+      opsPropagated: 0,
       samplesCollected: 0,
       liveP50Ms: 0,
       liveP95Ms: 0,
+      liveP99Ms: 0,
+      latestLatencyMs: 0,
+      recentLatencies: [],
       editsPerSecond: 0,
+      convergenceStatus: 'pending',
+      simulatedUsers: [],
       error: null,
     };
 
@@ -442,6 +494,16 @@ export class BenchmarkEngine {
       await this.finalizeRun(runId, 'completed', results, null);
 
       this._status.phase = 'completed';
+      this._status.progressPercent = 100;
+      this._status.remainingMs = 0;
+      this._status.convergenceStatus = results.convergenceAchieved ? 'converged' : 'failed';
+      this._status.liveP50Ms = results.latency.p50Ms;
+      this._status.liveP95Ms = results.latency.p95Ms;
+      this._status.liveP99Ms = results.latency.p99Ms;
+      this._status.opsAttempted = results.opsAttempted;
+      this._status.opsPropagated = results.opsPropagated;
+      this._status.samplesCollected = results.latency.sampleCount;
+
       this.log.info(
         { runId, p50: results.latency.p50Ms, p95: results.latency.p95Ms, samples: stats.sampleCount },
         'BENCH: run completed',
@@ -502,22 +564,41 @@ export class BenchmarkEngine {
     if (this._status.phaseStartedAt) {
       this._status.phaseElapsedMs = now - this._status.phaseStartedAt;
     }
+    if (this._status.totalDurationMs > 0) {
+      this._status.remainingMs = Math.max(0, this._status.totalDurationMs - this._status.elapsedMs);
+      this._status.progressPercent = Math.min(100, Math.round((this._status.elapsedMs / this._status.totalDurationMs) * 100));
+    }
     this._status.activeEditors = this.editors.filter(e => e.isConnected).length;
+    this._status.simulatedUsers = this.editors.map(e => ({
+      editorId: e.editorId,
+      displayName: e.displayName,
+      isConnected: e.isConnected,
+      editsCount: e.editsGenerated,
+    }));
 
     if (this.tracker) {
       const samples = this.tracker.latencySamples;
       this._status.samplesCollected = samples.length;
+      this._status.opsPropagated = samples.length;
 
-      if (samples.length >= 10) {
+      if (samples.length > 0) {
         const sorted = [...samples].sort((a, b) => a - b);
         this._status.liveP50Ms = Math.round(sorted[Math.floor(sorted.length * 0.5)]! * 100) / 100;
         this._status.liveP95Ms = Math.round(sorted[Math.floor(sorted.length * 0.95)]! * 100) / 100;
+        this._status.liveP99Ms = Math.round(sorted[Math.floor(sorted.length * 0.99)]! * 100) / 100;
+        this._status.latestLatencyMs = Math.round(samples[samples.length - 1]! * 100) / 100;
+        this._status.recentLatencies = samples.slice(-20).map(s => Math.round(s * 100) / 100);
       }
     }
 
     const totalEdits = this.editors.reduce((acc, e) => acc + e.editsGenerated, 0);
+    this._status.opsAttempted = totalEdits;
     const elapsedSec = this._status.elapsedMs / 1000;
     this._status.editsPerSecond = elapsedSec > 0 ? Math.round((totalEdits / elapsedSec) * 100) / 100 : 0;
+
+    if (['cooldown', 'convergence'].includes(this._status.phase)) {
+      this._status.convergenceStatus = 'testing';
+    }
   }
 
   private captureEnvironment(): Record<string, unknown> {

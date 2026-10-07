@@ -28,7 +28,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'charts', label: 'Metrics' },
   { id: 'health', label: 'Health' },
   { id: 'simulator', label: 'Simulator' },
-  { id: 'benchmark', label: 'Benchmark' },
+  { id: 'benchmark', label: 'Swarm Test' },
 ];
 
 export default function AdminDashboardPage() {

@@ -22,6 +22,7 @@ export interface BenchmarkConfig {
   targetRoom?: string;
   seed?: number;
   collectResourceMetrics?: boolean;
+  benchmarkMode?: 'latency' | 'load';
 }
 
 export type BenchmarkPhase =
@@ -35,6 +36,13 @@ export type BenchmarkPhase =
   | 'failed'
   | 'cancelled';
 
+export interface SimulatedUserStatus {
+  editorId: string;
+  displayName: string;
+  isConnected: boolean;
+  editsCount: number;
+}
+
 export interface BenchmarkLiveStatus {
   runId: string | null;
   phase: BenchmarkPhase;
@@ -43,11 +51,22 @@ export interface BenchmarkLiveStatus {
   phaseStartedAt: number | null;
   elapsedMs: number;
   phaseElapsedMs: number;
+  totalDurationMs: number;
+  remainingMs: number;
+  progressPercent: number;
+  totalExpectedUsers: number;
   activeEditors: number;
+  opsAttempted: number;
+  opsPropagated: number;
   samplesCollected: number;
   liveP50Ms: number;
   liveP95Ms: number;
+  liveP99Ms: number;
+  latestLatencyMs: number;
+  recentLatencies: number[];
   editsPerSecond: number;
+  convergenceStatus: 'pending' | 'testing' | 'converged' | 'failed';
+  simulatedUsers: SimulatedUserStatus[];
   error: string | null;
 }
 
@@ -145,6 +164,9 @@ export const benchmarkApi = {
 
   getStatus: () =>
     benchFetch<BenchmarkLiveStatus>('/status'),
+
+  getTargets: () =>
+    benchFetch<{ targets: string[] }>('/targets'),
 
   getRuns: (params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();

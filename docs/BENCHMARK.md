@@ -212,19 +212,59 @@ Migration file: `packages/server/src/db/migrations/012_benchmark_runs.sql`
 
 ---
 
+---
+
+## External Benchmark Runner (Laptop CLI)
+
+For research-grade deployed benchmarking that avoids server-side measurement contamination (where simulated users share the Render server's CPU and event loop), PeerGrid includes a standalone laptop CLI runner: `benchmark-cli.mjs`.
+
+### Architecture
+
+```
+User's Laptop (benchmark-cli.mjs)
+   │
+   │ Authenticates via POST /admin/benchmark/mint-token
+   │ Spawns N simulated WebSocket clients
+   ▼
+Render Deployed PeerGrid API (wss://peergriddemo-api.onrender.com/ws)
+   │
+   ▼
+Yjs Room Broadcast & Persistence
+```
+
+### Usage
+
+```bash
+# Run against deployed Render instance from your laptop
+node benchmark-cli.mjs \
+  --target wss://peergriddemo-api.onrender.com/ws \
+  --admin-url https://peergriddemo-api.onrender.com \
+  --secret "$ADMIN_SECRET" \
+  --users 10 \
+  --duration 30 \
+  --mode latency
+```
+
+Results from external CLI runs are automatically posted back to the Admin Dashboard via `POST /admin/benchmark/external-result` and persisted with `environment.source = 'external-cli'`.
+
+---
+
+## SSRF Target Allowlist
+
+To protect the server from Server-Side Request Forgery (SSRF), the benchmark target URL is validated against a strict allowlist configured via the `BENCHMARK_ALLOWED_TARGETS` environment variable:
+
+```bash
+# Comma-separated list of allowed WebSocket endpoints
+BENCHMARK_ALLOWED_TARGETS=ws://localhost:3001/ws,wss://peergriddemo-api.onrender.com/ws
+```
+
+If not configured, the server defaults strictly to `ws://localhost:<PORT>/ws`.
+
+---
+
 ## Known Limitations
 
-1. **Single-process only**: All simulated users run in the same Node.js process as the server. This means:
-   - `performance.now()` comparisons are valid (monotonic within one process)
-   - WAN latency is NOT measured
-   - Results show CRDT+WebSocket overhead, not geographic network latency
-
-2. **CPU/memory metrics are process-level**: `process.memoryUsage()` and `process.cpuUsage()` measure the entire PeerGrid server process, which also includes the benchmark runner itself.
-
-3. **Throughput vs real users**: Real human users don't type in synchronized burst patterns. The benchmark uses random jitter (50%–150% of base interval) to approximate realistic timing.
-
-4. **Max 200 concurrent users**: Enforced to protect Render free-tier memory (512 MB). Each `BenchmarkSimulatedEditor` holds a `Y.Doc` (~50–200 KB depending on content).
-
-5. **Free-tier Render constraints**: The Render free tier may show higher latencies during cold starts and when the server idles. Run a small warmup manually before benchmarking deployed instances.
-
-6. **Reconnect probability disabled by default**: Set `reconnectProbability > 0` to test reconnect resilience. Default is 0 to get clean baseline measurements.
+1. **In-process benchmark mode**: In the Admin Dashboard default mode, simulated users run in the server process. This provides monotonic `performance.now()` precision for internal CRDT and WebSocket engine latency, but measures local application performance rather than geographic WAN network delay.
+2. **External runner for WAN**: To measure real-world network propagation latency over WAN connections, use `benchmark-cli.mjs`.
+3. **CPU/memory metrics**: In in-process mode, `process.memoryUsage()` reflects the shared server process.
+4. **Max 200 concurrent users**: Enforced to safeguard memory on containerized hosting tiers.

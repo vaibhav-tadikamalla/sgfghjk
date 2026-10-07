@@ -58,6 +58,8 @@ const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
  * exists or on any database/decode error.
  */
 export async function loadSnapshot(fileId: string): Promise<Buffer | null> {
+  // Simulation bypass: sim-* rooms are ephemeral, no snapshot to load
+  if (fileId.startsWith('sim-')) return null;
   try {
     const result = await getPool().query<{ snapshot: Buffer; snapshot_seq: string }>(
       `SELECT snapshot,
@@ -125,6 +127,8 @@ export async function loadSnapshot(fileId: string): Promise<Buffer | null> {
  * Never throws — all errors are logged and swallowed.
  */
 export async function saveSnapshot(fileId: string, update: Buffer): Promise<void> {
+  // Simulation bypass: sim-* rooms are ephemeral, don't persist snapshots
+  if (fileId.startsWith('sim-')) return;
   const t0 = Date.now();
   try {
     // ── 1. Compact ──────────────────────────────────────────────────────────
